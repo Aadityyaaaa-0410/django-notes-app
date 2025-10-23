@@ -1,56 +1,59 @@
-version: "3.8"
-
+version: "3.9"
 services:
   nginx:
     build: ./nginx
-    image: nginx
-    container_name: "nginx_cont"
+    image: nginx-custom
+    container_name: nginx-cont
     ports:
       - "80:80"
     restart: always
-    depends_on:
-      - django_app
     networks:
-      - notes-app-nw
+      - net-app
+    depends_on:
+      django:
+        condition: service_healthy
 
-  django_app:
-    build:
-      context: .
-    image: django_app
-    container_name: "django_cont"
+  django:
+    build: .
+    image: django-custom
+    container_name: django_app
     ports:
       - "8000:8000"
-    command: sh -c "python manage.py migrate --noinput && gunicorn notesapp.wsgi --bind 0.0.0.0:8000"
-    env_file:
-      - ".env"
-    depends_on:
-      - db
     restart: always
+    env_file:
+      - .env
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/admin || exit 1"]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin"]
+      interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 20s
     networks:
-      - notes-app-nw
+      - net-app
+    depends_on:
+      db:
+        condition: service_healthy
 
   db:
     image: mysql
-    container_name: "db_cont"
+    container_name: db_cont
+    ports:
+      - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=test_db
-    volumes:
-      - ./data/mysql/db:/var/lib/mysql
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test_db
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 10s
+      test: ["CMD","mysqladmin","ping","-h","localhost","-proot"]
+      interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 60s
+      start_period: 20s
+    restart: always
     networks:
-      - notes-app-nw
+      - net-app
+    volumes:
+      - ./mysql-data:/var/lib/mysql
 
 networks:
-  notes-app-nw:
+  net-app:
+    driver: bridge
